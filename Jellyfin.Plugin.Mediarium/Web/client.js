@@ -155,6 +155,16 @@
         '.mdrm-step.now{font-weight:600}',
         '.mdrm-note{background:#b3261e33;border:1px solid #b3261e88;border-radius:6px;padding:8px 10px;font-size:.88em;margin:10px 0}',
         '.mdrm-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}',
+        '.mdrm-seasons{margin-top:16px;border-top:1px solid #2a2a2a;padding-top:10px}',
+        '.mdrm-seasons-h{display:flex;align-items:center;justify-content:space-between;font-size:.9em;color:#aaa;margin-bottom:4px}',
+        '.mdrm-seasons-h button{background:none;border:0;color:#00a4dc;cursor:pointer;font:inherit;padding:4px 0}',
+        '.mdrm-season{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid #262626;font-size:.92em;cursor:pointer}',
+        '.mdrm-season input{width:18px;height:18px;margin:0;accent-color:#00a4dc;flex:0 0 auto}',
+        '.mdrm-season input:disabled{opacity:.35}',
+        '.mdrm-season-n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+        '.mdrm-season-e{color:#888;font-size:.85em;white-space:nowrap}',
+        '.mdrm-season .mdrm-badge{position:static;white-space:nowrap}',
+        '.mdrm-season.off{cursor:default}',
         '.mdrm-btn{background:#00a4dc;color:#fff;border:0;border-radius:6px;padding:10px 16px;font-size:.95em;cursor:pointer;font:inherit}',
         '.mdrm-btn[disabled]{opacity:.5;cursor:default}',
         '.mdrm-btn.alt{background:#333}',
@@ -335,11 +345,73 @@
 
     // ---------- the title panel ----------
 
+    // ---------- seasons ----------
+
+    var SEASON_LABEL = { pending: 'Requested', approved: 'Approved', partial: 'Partly in', available: 'In library' };
+
+    function seasonsText(list) {
+        if (!list || !list.length) {
+            return '';
+        }
+        if (list.length === 1) {
+            return 'season ' + list[0];
+        }
+        return 'seasons ' + list.slice(0, -1).join(', ') + ' and ' + list[list.length - 1];
+    }
+
+    // A season can be picked when nobody has it yet (or asking was declined).
+    function seasonOpen(s) {
+        return s.state === 'none' || s.state === 'declined';
+    }
+
+    // The season checklist of a show's panel: { picked(), sync() }, or null
+    // when no season can be picked (the list still shows where each stands).
+    // onChange gets the picked seasons and whether every season that can be
+    // picked is.
+    function seasonPicker(box, seasons, preselect, onChange) {
+        var open = seasons.filter(seasonOpen);
+        var wrap = el('<div class="mdrm-seasons"><div class="mdrm-seasons-h"><span>Seasons</span><button type="button"></button></div></div>');
+        var toggle = wrap.querySelector('button');
+        seasons.forEach(function (s) {
+            var can = seasonOpen(s);
+            var count = s.state === 'partial' && s.downloaded ? s.downloaded + ' of ' + s.episodes + ' episodes' : s.episodes + (s.episodes === 1 ? ' episode' : ' episodes');
+            var year = s.airDate ? s.airDate.slice(0, 4) : '';
+            var row = el('<label class="mdrm-season' + (can ? '' : ' off') + '"><input type="checkbox"' + (can ? '' : ' disabled') + (can && preselect ? ' checked' : '') + ' data-season="' + s.number + '">' +
+                '<span class="mdrm-season-n">' + esc(s.name || ('Season ' + s.number)) + '</span>' +
+                '<span class="mdrm-season-e">' + esc([year, count].filter(Boolean).join(' · ')) + '</span>' +
+                (can ? '' : '<span class="mdrm-badge mdrm-s-' + (s.state === 'partial' ? 'downloading' : esc(s.state)) + '">' + esc(SEASON_LABEL[s.state] || s.state) + '</span>') +
+                '</label>');
+            wrap.appendChild(row);
+        });
+        var boxes = function () { return Array.prototype.slice.call(wrap.querySelectorAll('input:not(:disabled)')); };
+        var picked = function () {
+            return boxes().filter(function (b) { return b.checked; }).map(function (b) { return Number(b.getAttribute('data-season')); });
+        };
+        var sync = function () {
+            var all = boxes().every(function (b) { return b.checked; });
+            toggle.textContent = all ? 'Select none' : 'Select all';
+            onChange(picked(), all);
+        };
+        toggle.addEventListener('click', function () {
+            var all = boxes().every(function (b) { return b.checked; });
+            boxes().forEach(function (b) { b.checked = !all; });
+            sync();
+        });
+        box.appendChild(wrap);
+        if (!open.length) {
+            toggle.hidden = true;
+            return null;
+        }
+        wrap.addEventListener('change', sync);
+        sync();
+        return { picked: picked, sync: sync };
+    }
+
     function openTitle(media, tmdbId, seed) {
         addStyles();
         var bg = el('<div class="mdrm-panel-bg"><div class="mdrm-panel" role="dialog" aria-modal="true"><div class="mdrm-hero"></div>' +
             '<div class="mdrm-body">' + poster(seed || {}) + '<div class="mdrm-info"><h3>' + esc((seed && seed.title) || '') + '</h3>' +
-            '<div class="mdrm-meta"></div><div class="mdrm-ov">Loading…</div><div class="mdrm-status"></div><div class="mdrm-actions"></div></div></div></div></div>');
+            '<div class="mdrm-meta"></div><div class="mdrm-ov">Loading…</div><div class="mdrm-status"></div><div class="mdrm-pick"></div><div class="mdrm-actions"></div></div></div></div></div>');
         function close() {
             bg.remove();
             document.removeEventListener('keydown', onKey, true);
@@ -402,16 +474,42 @@
 
                 var actions = bg.querySelector('.mdrm-actions');
                 actions.innerHTML = '';
+                var pick = bg.querySelector('.mdrm-pick');
+                pick.innerHTML = '';
                 var canFourK = all[0].fourK && q.fourK && q.fourK[media];
                 var label4k = (q.fourKLabel || '4K');
-                if (st === 'none' || st === 'declined') {
-                    addBtn(actions, st === 'declined' ? 'Ask again' : 'Request', '', function () { return request(false); });
+                var seasons = media === 'tv' ? (all[0].seasons || []) : [];
+                var fresh = st === 'none' || st === 'declined';
+                var reqBtn = null;
+                // A show: pick its seasons. Not in the library yet, every season
+                // starts picked; in the library, the seasons it lacks can be
+                // asked for.
+                var picked = seasons.length > 1 || (seasons.length && !fresh) ? seasonPicker(pick, seasons, fresh, function (list, all) {
+                    if (!reqBtn) {
+                        return;
+                    }
+                    reqBtn.disabled = !list.length;
+                    reqBtn.textContent = !list.length ? 'Pick a season' : fresh && all ? (st === 'declined' ? 'Ask again' : 'Request') : 'Request ' + seasonsText(list);
+                }) : null;
+                if (fresh || picked) {
+                    reqBtn = addBtn(actions, st === 'declined' ? 'Ask again' : 'Request', '', function () {
+                        var list = picked ? picked.picked() : [];
+                        // Every season of a new show: ask for the whole show.
+                        var whole = fresh && list.length === seasons.filter(seasonOpen).length;
+                        return request(false, whole ? null : list);
+                    });
+                    if (picked) {
+                        picked.sync();
+                    }
                 }
                 if (canFourK && !fourKReq && st !== 'none' && st !== 'declined') {
                     addBtn(actions, 'Request in ' + label4k + ' too', 'alt', function () { return request(true); });
                 } else if (canFourK && !fourKReq && st === 'none') {
                     addBtn(actions, 'Request in ' + label4k + ' too', 'alt', function () {
-                        return request(false).then(function () { return request(true); });
+                        // The 4K copy is always the whole show.
+                        var list = picked ? picked.picked() : [];
+                        var whole = list.length === seasons.filter(seasonOpen).length;
+                        return request(false, whole ? null : list).then(function () { return request(true); });
                     });
                 }
                 if (latest && latest.state === 'pending') {
@@ -438,8 +536,12 @@
             });
         }
 
-        function request(fourK) {
-            return api('POST', 'requests', { media: media, tmdbId: tmdbId, fourK: fourK }).then(function (res) {
+        function request(fourK, seasons) {
+            var body = { media: media, tmdbId: tmdbId, fourK: fourK };
+            if (seasons && seasons.length) {
+                body.seasons = seasons;
+            }
+            return api('POST', 'requests', body).then(function (res) {
                 toast((res && res.message) || 'Asked.');
                 quota = null;
             });
@@ -460,6 +562,7 @@
                 });
             });
             box.appendChild(b);
+            return b;
         }
 
         render().then(function () {
@@ -733,6 +836,11 @@
             };
             setState();
             btn.addEventListener('click', function () {
+                if (p.media !== 'movie') {
+                    // A show: the panel lets them pick its seasons.
+                    openTitle(p.media, p.tmdbId, { title: p.title });
+                    return;
+                }
                 if (state === 'none' || state === 'declined') {
                     btn.disabled = true;
                     api('POST', 'requests', { media: p.media, tmdbId: p.tmdbId, fourK: false }).then(function (res) {
