@@ -13,7 +13,9 @@ Built for Jellyfin **10.11**. Needs a Mediarium with the plugin API
 - **Request page in Jellyfin Web**: a *Request* entry in the side menu and a
   *Request something* row on Home. Search, trending and popular rows with each
   title's state, a title panel with **Request**, **Request in 4K too** and
-  **Cancel request**, a 4-step status (Requested, Approved, Downloading, Ready),
+  **Cancel request**, a season list for shows (pick the seasons to ask for, or
+  ask for more seasons of a show that's already in the library; each season
+  shows whether it's requested, approved, partly in or in the library), a 4-step status (Requested, Approved, Downloading, Ready),
   how many requests are left, and *Your requests*. The same page is at
   `http://<jellyfin>/MediariumRequests/Page` on its own.
 - **Jellyfin's own search** (Jellyfin Web): under the library's results there's
