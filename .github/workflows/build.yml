@@ -28,6 +28,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" artifacts/*.zip --title "$GITHUB_REF_NAME" --notes "See manifest.json for the changelog. MD5: $(md5sum artifacts/*.zip | cut -d' ' -f1)"
+        run: |
+          SUM=$(md5sum artifacts/*.zip | cut -d' ' -f1)
+          gh release create "$GITHUB_REF_NAME" artifacts/*.zip --title "$GITHUB_REF_NAME" --notes "See manifest.json for the changelog. MD5: $SUM"
     permissions:
       contents: write
