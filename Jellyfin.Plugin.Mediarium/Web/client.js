@@ -167,7 +167,7 @@
         '.mdrm-req .mdrm-poster{flex:0 0 46px;height:69px;aspect-ratio:auto}',
         '.mdrm-req .mdrm-badge{position:static}',
         '.mdrm-req-t{flex:1;min-width:0}',
-        '.mdrm-home .mdrm-row{padding-left:3.3%;padding-right:3.3%}',
+        '.mdrm-home .mdrm-row{padding-left:3.3%;padding-right:3.3%;scroll-padding:0 3.3%}',
         '.mdrm-home .sectionTitle{display:flex;align-items:center;gap:12px}',
         '.mdrm-home .mdrm-more{font-size:.6em;color:#00a4dc;cursor:pointer;background:none;border:0;font-family:inherit}',
         '@media (max-width:600px){.mdrm-body{flex-direction:column;margin-top:-40px}.mdrm-body .mdrm-poster{display:none}.mdrm-info{padding-top:0}.mdrm-card{flex-basis:110px}.mdrm-grid{grid-template-columns:repeat(auto-fill,minmax(105px,1fr))}}'
