@@ -1,0 +1,21 @@
+[
+  {
+    "guid": "f5af71a2-8c0c-40ba-ac96-d59ab2f96ba9",
+    "name": "Mediarium Requests",
+    "description": "Find and request movies and shows from Mediarium inside Jellyfin: a Request page in Jellyfin Web, a Discover library where favouriting a title requests it, and a pop-up when what you asked for is ready.",
+    "overview": "Request movies and shows from Mediarium without leaving Jellyfin",
+    "owner": "TheAlek0513",
+    "category": "General",
+    "imageUrl": "",
+    "versions": [
+      {
+        "version": "0.1.0.0",
+        "changelog": "First release: Request page, Discover library, ready pop-up and \"Ready for you\" playlist.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/TheAlek0513/media-jellyfin/releases/download/v0.1.0.0/mediarium-requests_0.1.0.0.zip",
+        "checksum": "34ab9343de3cf2f0f41033735f613498",
+        "timestamp": "2026-10-21T00:00:00Z"
+      }
+    ]
+  }
+]

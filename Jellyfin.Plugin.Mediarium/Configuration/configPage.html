@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Mediarium Requests</title>
+</head>
+<body>
+    <div id="MediariumConfigPage" data-role="page" class="page type-interior pluginConfigurationPage" data-require="emby-input,emby-button,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="MediariumConfigForm">
+                    <div class="verticalSection">
+                        <h2 class="sectionTitle">Mediarium Requests</h2>
+                        <p>In Mediarium, open <b>Settings &gt; Other apps &gt; Jellyfin plugin</b>, press <b>Switch on and make a key</b>, and paste the address and key here. Then link Jellyfin users to Mediarium accounts there.</p>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="MediariumUrl">Mediarium address</label>
+                        <input id="MediariumUrl" name="MediariumUrl" type="url" is="emby-input" placeholder="http://mediarium:8080" />
+                        <div class="fieldDescription">With the URL base, if Mediarium has one.</div>
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="PluginKey">Plugin key</label>
+                        <input id="PluginKey" name="PluginKey" type="password" is="emby-input" autocomplete="off" />
+                    </div>
+
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="JellyfinUrl">This Jellyfin's address, as Mediarium reaches it</label>
+                        <input id="JellyfinUrl" name="JellyfinUrl" type="url" is="emby-input" placeholder="http://jellyfin:8096" />
+                        <div class="fieldDescription">Mediarium tells the plugin here the moment a title is ready. Leave it empty if Mediarium can't reach Jellyfin; the plugin then asks every 20 seconds instead.</div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="AddToJellyfinWeb" name="AddToJellyfinWeb" type="checkbox" is="emby-checkbox" />
+                            <span>Add the Request page to Jellyfin Web</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">A <b>Request</b> entry in the side menu, a <b>Request something</b> row on Home, and a pop-up when a title is ready. Reload Jellyfin Web after changing this. The page is also at <a id="PageLink" href="#" target="_blank" rel="noopener">MediariumRequests/Page</a>.</div>
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="ReadyPlaylist" name="ReadyPlaylist" type="checkbox" is="emby-checkbox" />
+                            <span>Keep a "Ready for you" playlist for each person</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">What they asked for goes in it once it's in the library. Playlists are private to each person.</div>
+                    </div>
+
+                    <p id="MediariumStatus" class="fieldDescription" style="min-height:1.4em"></p>
+
+                    <div>
+                        <button is="emby-button" type="button" id="MediariumTest" class="raised button-alt block emby-button"><span>Test</span></button>
+                        <button is="emby-button" type="submit" class="raised button-submit block emby-button"><span>Save</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script type="text/javascript">
+            (function () {
+                var pluginId = 'f5af71a2-8c0c-40ba-ac96-d59ab2f96ba9';
+                var page = document.querySelector('#MediariumConfigPage');
+                var status = page.querySelector('#MediariumStatus');
+
+                function post(path, body) {
+                    return ApiClient.fetch({
+                        type: 'POST',
+                        url: ApiClient.getUrl('MediariumRequests/' + path),
+                        data: body ? JSON.stringify(body) : '{}',
+                        contentType: 'application/json',
+                        dataType: 'json'
+                    }).catch(function (res) {
+                        if (res && typeof res.json === 'function') {
+                            return res.json().then(function (j) { throw new Error(j.error || ('Answered ' + res.status)); }, function () { throw new Error('Answered ' + res.status); });
+                        }
+                        throw res instanceof Error ? res : new Error('Request failed');
+                    });
+                }
+
+                function say(text, ok) {
+                    status.textContent = text;
+                    status.style.color = ok ? '#52b54b' : (ok === false ? '#e05a5a' : '');
+                }
+
+                page.addEventListener('pageshow', function () {
+                    Dashboard.showLoadingMsg();
+                    page.querySelector('#PageLink').href = ApiClient.getUrl('MediariumRequests/Page');
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        page.querySelector('#MediariumUrl').value = config.MediariumUrl || '';
+                        page.querySelector('#PluginKey').value = config.PluginKey || '';
+                        page.querySelector('#JellyfinUrl').value = config.JellyfinUrl || ApiClient.serverAddress();
+                        page.querySelector('#AddToJellyfinWeb').checked = config.AddToJellyfinWeb !== false;
+                        page.querySelector('#ReadyPlaylist').checked = config.ReadyPlaylist !== false;
+                        Dashboard.hideLoadingMsg();
+                    });
+                });
+
+                page.querySelector('#MediariumTest').addEventListener('click', function () {
+                    say('Testing…');
+                    post('Admin/Test', {
+                        MediariumUrl: page.querySelector('#MediariumUrl').value,
+                        PluginKey: page.querySelector('#PluginKey').value
+                    }).then(function (p) {
+                        var bits = ['Connected to Mediarium ' + (p.version || '') + '.'];
+                        bits.push(p.jellyfin ? 'It knows this Jellyfin.' : 'Connect Jellyfin under Settings > Media servers in Mediarium too.');
+                        bits.push(p.callback ? 'Events: sent here.' : 'Events: not registered yet (press Save).');
+                        say(bits.join(' '), true);
+                    }).catch(function (e) { say(e.message, false); });
+                });
+
+                page.querySelector('#MediariumConfigForm').addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+                        config.MediariumUrl = page.querySelector('#MediariumUrl').value.trim();
+                        config.PluginKey = page.querySelector('#PluginKey').value.trim();
+                        config.JellyfinUrl = page.querySelector('#JellyfinUrl').value.trim();
+                        config.AddToJellyfinWeb = page.querySelector('#AddToJellyfinWeb').checked;
+                        config.ReadyPlaylist = page.querySelector('#ReadyPlaylist').checked;
+                        return ApiClient.updatePluginConfiguration(pluginId, config);
+                    }).then(function (result) {
+                        Dashboard.processPluginConfigurationUpdateResult(result);
+                        return post('Admin/Register').then(function () {
+                            say(page.querySelector('#JellyfinUrl').value.trim()
+                                ? 'Saved. Mediarium sends events to this Jellyfin.'
+                                : 'Saved. The plugin asks Mediarium for events.', true);
+                        }, function (err) { say('Saved, but registering with Mediarium failed: ' + err.message, false); });
+                    }).finally(function () { Dashboard.hideLoadingMsg(); });
+                    return false;
+                });
+            })();
+        </script>
+    </div>
+</body>
+</html>
