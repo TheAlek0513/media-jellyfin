@@ -13,8 +13,8 @@
         "changelog": "First release: Request page, Discover library, ready pop-up and \"Ready for you\" playlist.",
         "targetAbi": "10.11.0.0",
         "sourceUrl": "https://github.com/TheAlek0513/media-jellyfin/releases/download/v0.1.0.0/mediarium-requests_0.1.0.0.zip",
-        "checksum": "67f15b0339b12e5ebea47002175c282c",
-        "timestamp": "2026-10-21T00:00:00Z"
+        "checksum": "d8dd7d237ecb0fd8946e30b1793a2732",
+        "timestamp": "2026-10-21T12:53:52Z"
       }
     ]
   }
