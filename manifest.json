@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "0.3.0.0",
+        "changelog": "Choose seasons when asking for a show: the title panel lists the seasons and where each stands, and a show already in the library can be asked for the seasons it doesn't have. Needs a Mediarium with season requests.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/TheAlek0513/media-jellyfin/releases/download/v0.3.0.0/mediarium-requests_0.3.0.0.zip",
+        "checksum": "1ccc6f08512b080ee5b147c9f1617162",
+        "timestamp": "2026-10-21T20:28:08Z"
+      },
+      {
         "version": "0.2.0.0",
         "changelog": "Request from Jellyfin's own search: a \"Not in your library\" row in Jellyfin Web's search, and Request instead of Play on Discover titles.",
         "targetAbi": "10.11.0.0",
