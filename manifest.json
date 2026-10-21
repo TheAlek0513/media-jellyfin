@@ -9,6 +9,14 @@
     "imageUrl": "",
     "versions": [
       {
+        "version": "0.2.0.0",
+        "changelog": "Request from Jellyfin's own search: a \"Not in your library\" row in Jellyfin Web's search, and Request instead of Play on Discover titles.",
+        "targetAbi": "10.11.0.0",
+        "sourceUrl": "https://github.com/TheAlek0513/media-jellyfin/releases/download/v0.2.0.0/mediarium-requests_0.2.0.0.zip",
+        "checksum": "10ba53cdc6652b89d3cfd92dc7fe02f8",
+        "timestamp": "2026-10-21T13:14:27Z"
+      },
+      {
         "version": "0.1.0.0",
         "changelog": "First release: Request page, Discover library, ready pop-up and \"Ready for you\" playlist.",
         "targetAbi": "10.11.0.0",
