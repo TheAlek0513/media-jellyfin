@@ -170,6 +170,13 @@
         '.mdrm-home .mdrm-row{padding-left:3.3%;padding-right:3.3%;scroll-padding:0 3.3%}',
         '.mdrm-home .sectionTitle{display:flex;align-items:center;gap:12px}',
         '.mdrm-home .mdrm-more{font-size:.6em;color:#00a4dc;cursor:pointer;background:none;border:0;font-family:inherit}',
+        '.mdrm-placeholder .mainDetailButtons .btnPlay,.mdrm-placeholder .mainDetailButtons .btnReplay,.mdrm-placeholder .mainDetailButtons .btnResume,.mdrm-placeholder .mainDetailButtons .btnDownload,.mdrm-placeholder .mainDetailButtons .btnShuffle,.mdrm-placeholder .mainDetailButtons .btnInstantMix,.mdrm-placeholder .mainDetailButtons .btnPlaystate{display:none!important}',
+        '.mdrm-reqbtn{background:#00a4dc!important;color:#fff!important;border-radius:999px!important;padding:0 18px 0 12px!important}',
+        '.mdrm-reqbtn .detailButton-content{display:flex!important;flex-direction:row!important;align-items:center;gap:6px;height:100%}',
+        '.mdrm-reqbtn .mdrm-reqlabel{font-size:1rem;font-weight:600;white-space:nowrap}',
+        '.mdrm-reqbtn-done{background:#333!important}',
+        '.mdrm-search{margin-top:1em}',
+        '#searchPage.mdrm-has-results .noItemsMessage{display:none}',
         '@media (max-width:600px){.mdrm-body{flex-direction:column;margin-top:-40px}.mdrm-body .mdrm-poster{display:none}.mdrm-info{padding-top:0}.mdrm-card{flex-basis:110px}.mdrm-grid{grid-template-columns:repeat(auto-fill,minmax(105px,1fr))}}'
     ].join('\n');
 
@@ -577,6 +584,172 @@
         document.body.appendChild(box);
     }
 
+    // ---------- Jellyfin's own search ----------
+
+    var info = null;
+
+    function serverInfo() {
+        if (!info) {
+            info = call('GET', 'Info').catch(function () { info = null; return {}; });
+        }
+        return info;
+    }
+
+    var searchShown = '';
+    var searchBusy = '';
+
+    function searchQuery() {
+        var input = document.querySelector('#searchPage:not(.hide) .searchfields-txtSearch');
+        return input ? input.value.trim() : '';
+    }
+
+    // Jellyfin's results, or the page itself when the library found nothing
+    // (then Jellyfin only shows a "no results" line).
+    function searchTarget() {
+        var pageEl = document.querySelector('#searchPage:not(.hide)');
+        return pageEl && (pageEl.querySelector('.searchResults') || pageEl);
+    }
+
+    function addSearchResults() {
+        var results = searchTarget();
+        if (!results) {
+            return;
+        }
+        serverInfo().then(function (i) { hideDiscoverCards(results, i && i.discoverChannelId); });
+        var q = searchQuery();
+        var existing = results.querySelector('.mdrm-search');
+        if (q.length < 2) {
+            document.querySelectorAll('#searchPage .mdrm-search').forEach(function (o) { o.remove(); });
+            document.querySelector('#searchPage:not(.hide)').classList.remove('mdrm-has-results');
+            searchShown = '';
+            return;
+        }
+        if ((existing && searchShown === q) || searchBusy === q) {
+            return;
+        }
+        // A section from the last query, left outside Jellyfin's new results.
+        document.querySelectorAll('#searchPage .mdrm-search').forEach(function (o) { o.remove(); });
+        searchBusy = q;
+        api('GET', 'search?q=' + encodeURIComponent(q)).then(function (list) {
+            searchBusy = '';
+            if (searchQuery() !== q) {
+                return;
+            }
+            list = (list || []).filter(function (t) { return t.state !== 'available'; });
+            var target = searchTarget();
+            if (!target) {
+                return;
+            }
+            document.querySelectorAll('#searchPage .mdrm-search').forEach(function (o) { o.remove(); });
+            searchShown = q;
+            // Hides Jellyfin's "no results" line while there are some here.
+            document.querySelector('#searchPage:not(.hide)').classList.toggle('mdrm-has-results', list.length > 0);
+            if (!list.length) {
+                return;
+            }
+            addStyles();
+            var sec = el('<div class="verticalSection mdrm-search mdrm-home">' +
+                '<h2 class="sectionTitle sectionTitle-cards padded-left padded-right">Not in your library</h2>' +
+                '<div class="mdrm-row"></div></div>');
+            fillRow(sec.querySelector('.mdrm-row'), list);
+            target.appendChild(sec);
+        }).catch(function () { searchBusy = ''; });
+    }
+
+    // Discover placeholders that Jellyfin's search found are shown in our own
+    // section with their state, so they're left out of Jellyfin's rows.
+    function hideDiscoverCards(results, channelId) {
+        if (!channelId) {
+            return;
+        }
+        results.querySelectorAll('.card[data-channelid="' + channelId + '"]').forEach(function (c) {
+            c.classList.add('hide');
+        });
+        results.querySelectorAll('.verticalSection:not(.mdrm-search)').forEach(function (s) {
+            var cards = s.querySelectorAll('.card');
+            if (cards.length && s.querySelectorAll('.card:not(.hide)').length === 0) {
+                s.classList.add('hide');
+            }
+        });
+    }
+
+    // ---------- Request instead of Play on a Discover title ----------
+
+    var placeholders = {};
+
+    function itemIdFromHash() {
+        var m = /[?&]id=([0-9a-f-]{32,36})/i.exec(location.hash);
+        return /^#\/details/.test(location.hash) && m ? m[1].replace(/-/g, '').toLowerCase() : '';
+    }
+
+    function placeholderOf(id) {
+        if (!(id in placeholders)) {
+            placeholders[id] = call('GET', 'Placeholder/' + id).catch(function () { return null; });
+        }
+        return placeholders[id];
+    }
+
+    var STATE_LABEL = { none: 'Request', declined: 'Ask again', pending: 'Requested', approved: 'Approved', downloading: 'Downloading', available: 'Ready' };
+
+    function addDetailRequest() {
+        var detail = document.querySelector('#itemDetailPage:not(.hide)');
+        var id = itemIdFromHash();
+        if (!detail || !id) {
+            return;
+        }
+        placeholderOf(id).then(function (p) {
+            var page2 = document.querySelector('#itemDetailPage:not(.hide)');
+            if (!page2 || itemIdFromHash() !== id) {
+                return;
+            }
+            page2.classList.toggle('mdrm-placeholder', !!p);
+            var buttons = page2.querySelector('.mainDetailButtons');
+            var old = buttons && buttons.querySelector('.mdrm-reqbtn');
+            if (old && old.getAttribute('data-for') !== id) {
+                old.remove();
+                old = null;
+            }
+            if (!p || !buttons || old) {
+                return;
+            }
+            addStyles();
+            var btn = el('<button is="emby-button" type="button" class="button-flat detailButton emby-button mdrm-reqbtn" data-for="' + esc(id) + '" title="Request">' +
+                '<div class="detailButton-content"><span class="material-icons detailButton-icon add_circle_outline" aria-hidden="true"></span>' +
+                '<span class="mdrm-reqlabel">Request</span></div></button>');
+            buttons.insertBefore(btn, buttons.firstChild);
+            var state = 'none';
+            var setState = function () {
+                return api('GET', 'titles/' + p.media + '/' + p.tmdbId).then(function (t) {
+                    var s = (t && t.state) || {};
+                    state = s.state || 'none';
+                    var label = STATE_LABEL[state] || 'Request';
+                    if (state === 'downloading' && s.progress != null) {
+                        label += ' ' + Math.round(s.progress) + '%';
+                    }
+                    btn.querySelector('.mdrm-reqlabel').textContent = label;
+                    btn.title = label;
+                    btn.classList.toggle('mdrm-reqbtn-done', state !== 'none' && state !== 'declined');
+                }).catch(function () { /* keep "Request" */ });
+            };
+            setState();
+            btn.addEventListener('click', function () {
+                if (state === 'none' || state === 'declined') {
+                    btn.disabled = true;
+                    api('POST', 'requests', { media: p.media, tmdbId: p.tmdbId, fourK: false }).then(function (res) {
+                        toast((res && res.message) || 'Asked.');
+                        quota = null;
+                    }).catch(function (e) { toast(e.message); }).then(function () {
+                        btn.disabled = false;
+                        setState();
+                    });
+                } else {
+                    // Already asked: the panel shows where it stands, 4K and cancel.
+                    openTitle(p.media, p.tmdbId, { title: p.title });
+                }
+            });
+        });
+    }
+
     // ---------- start ----------
 
     function start() {
@@ -596,6 +769,8 @@
             }
             addMenuEntry();
             addHomeRow();
+            addSearchResults();
+            addDetailRequest();
         };
         new MutationObserver(function () {
             clearTimeout(tick.t);

@@ -16,6 +16,10 @@ Built for Jellyfin **10.11**. Needs a Mediarium with the plugin API
   **Cancel request**, a 4-step status (Requested, Approved, Downloading, Ready),
   how many requests are left, and *Your requests*. The same page is at
   `http://<jellyfin>/MediariumRequests/Page` on its own.
+- **Jellyfin's own search** (Jellyfin Web): under the library's results there's
+  a **Not in your library** row of matching titles from Mediarium, with their
+  state. Open one and press **Request**. A Discover title opened in Jellyfin Web
+  shows **Request** where the Play button would be.
 - **Discover library** for every app (phones, TVs): trending and popular titles
   that aren't in the library yet, each marked "Not in library, favourite to
   request." Favouriting one requests it as that person, and they get a message

@@ -9,9 +9,15 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using Jellyfin.Data.Enums;
+using Jellyfin.Plugin.Mediarium.Discover;
 using Jellyfin.Plugin.Mediarium.Events;
+using MediaBrowser.Controller.Channels;
+using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.Session;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Session;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -32,6 +38,7 @@ public partial class MediariumController : ControllerBase
     private readonly EventProcessor _processor;
     private readonly NoticeStore _store;
     private readonly ISessionManager _sessionManager;
+    private readonly ILibraryManager _libraryManager;
     private readonly ILogger<MediariumController> _logger;
 
     /// <summary>
@@ -42,6 +49,7 @@ public partial class MediariumController : ControllerBase
     /// <param name="processor">The event processor.</param>
     /// <param name="store">The notice store.</param>
     /// <param name="sessionManager">Jellyfin's sessions.</param>
+    /// <param name="libraryManager">Jellyfin's library.</param>
     /// <param name="logger">The logger.</param>
     public MediariumController(
         MediariumClient client,
@@ -49,6 +57,7 @@ public partial class MediariumController : ControllerBase
         EventProcessor processor,
         NoticeStore store,
         ISessionManager sessionManager,
+        ILibraryManager libraryManager,
         ILogger<MediariumController> logger)
     {
         _client = client;
@@ -56,6 +65,7 @@ public partial class MediariumController : ControllerBase
         _processor = processor;
         _store = store;
         _sessionManager = sessionManager;
+        _libraryManager = libraryManager;
         _logger = logger;
     }
 
@@ -99,6 +109,35 @@ public partial class MediariumController : ControllerBase
 
         var response = await _client.SendAsync(method, path + Request.QueryString.Value, auth.UserId, body, cancellationToken).ConfigureAwait(false);
         return Json(response.Status, response.Body);
+    }
+
+    /// <summary>What the script needs to know about this server: the Discover library's id.</summary>
+    /// <returns>The info.</returns>
+    [HttpGet("Info")]
+    [Authorize]
+    public ActionResult GetInfo()
+    {
+        var channelId = _libraryManager.GetNewItemId("Channel " + DiscoverChannel.ChannelName, typeof(Channel));
+        return Json(200, JsonSerializer.Serialize(new { discoverChannelId = channelId.ToString("N") }, JsonOptions));
+    }
+
+    /// <summary>Says whether an item is a Discover placeholder, and which title it stands for.</summary>
+    /// <param name="itemId">The Jellyfin item.</param>
+    /// <returns>The title's media and TMDB id, or 404.</returns>
+    [HttpGet("Placeholder/{itemId}")]
+    [Authorize]
+    public ActionResult GetPlaceholder([FromRoute] Guid itemId)
+    {
+        var item = _libraryManager.GetItemById(itemId);
+        if (item is null
+            || item.SourceType != SourceType.Channel
+            || !DiscoverChannel.TryParseId(item.ExternalId, out var media, out var tmdbId)
+            || !item.ChannelId.Equals(_libraryManager.GetNewItemId("Channel " + DiscoverChannel.ChannelName, typeof(Channel))))
+        {
+            return Json(404, MediariumClient.Error("Not a Discover title."));
+        }
+
+        return Json(200, JsonSerializer.Serialize(new { media, tmdbId, title = item.Name }, JsonOptions));
     }
 
     /// <summary>The signed-in person's unseen "ready to watch" notices. Also tells the plugin this device shows its own pop-up.</summary>
